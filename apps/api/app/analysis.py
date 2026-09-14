@@ -1,5 +1,5 @@
-"""설명 가능한 위험도와 증거 무결성 서비스.
-
+"""
+설명 가능한 위험도와 증거 무결성 서비스.
 현재는 synthetic replay 시나리오용 규칙 기반 특성을 사용하며, 운영 환경에서는
 학습된 분류기·그래프·시계열 워커가 동일한 특성 계약을 공급한다.
 """
@@ -51,11 +51,15 @@ def analyze_events(events: list[EventResponse]) -> RiskSummary:
     else:
         stage, actions = RiskStage.PRE_IGNITION, ["정상 감시를 유지하세요.", "대상별 키워드와 신고 담당자를 확인하세요."]
 
+    toxicity_explanation = (
+        "위험 키워드가 포함된 표현이 확인되었습니다." if toxicity_source == "rule_fallback"
+        else "AI 분석 결과 유해한 표현이 포함된 것으로 나타났습니다."
+    )
     features = [
-        RiskFeature(name="mention_growth", value=growth, explanation=f"시연 구간에서 {count}건의 이벤트가 순차 유입되었습니다."),
-        RiskFeature(name="cross_platform_spread", value=spread, explanation=f"{platform_count}개 플랫폼에서 관련 신호가 관측되었습니다."),
-        RiskFeature(name="toxicity_severity", value=toxicity, explanation=f"유해성 점수는 {toxicity_source}에서 산출했습니다."),
-        RiskFeature(name="coordination_signal", value=coordination, explanation="반복 문구·해시태그는 협조 행동 의심 신호이며 조직성을 확정하지 않습니다."),
+        RiskFeature(name="mention_growth", value=growth, explanation=f"최근 언급이 {count}건 연속으로 빠르게 늘고 있습니다."),
+        RiskFeature(name="cross_platform_spread", value=spread, explanation=f"{platform_count}개의 서로 다른 플랫폼에서 관련 게시물이 확인되었습니다."),
+        RiskFeature(name="toxicity_severity", value=toxicity, explanation=toxicity_explanation),
+        RiskFeature(name="coordination_signal", value=coordination, explanation="동일한 문구와 해시태그가 반복적으로 발견되어 조직적 활동의 가능성이 있습니다."),
     ]
     return RiskSummary(
         target_id=target_id, score=score, stage=stage, confidence=confidence, toxicity_source=toxicity_source,
@@ -70,10 +74,11 @@ def build_evidence_manifest(events: list[EventResponse]) -> EvidenceManifest:
     for event in events:
         digest = hashlib.sha256(event.model_dump_json().encode("utf-8")).hexdigest()
         item_hashes.append(digest)
-        items.append(EvidenceItem(event_id=event.event_id, collected_at=datetime.now(UTC), sha256=digest))
+        items.append(EvidenceItem(event_id=event.event_id, collected_at=event.occurred_at, sha256=digest))
+    generated_at = max((event.occurred_at for event in events), default=datetime.fromtimestamp(0, UTC))
     return EvidenceManifest(
         target_id=events[0].target_ref,
-        generated_at=datetime.now(UTC),
+        generated_at=generated_at,
         package_sha256=hashlib.sha256("".join(item_hashes).encode("utf-8")).hexdigest(),
         integrity_notice="본 패키지는 SHA-256과 수집 시각으로 무결성 검증을 지원합니다. 법적 증거능력은 별도 판단이 필요합니다.",
         items=items,

@@ -1,11 +1,10 @@
-"""데모 API Key 기반 RBAC와 테넌트 컨텍스트.
-
+"""
+데모 API Key 기반 RBAC와 테넌트 컨텍스트.
 P2에서 OAuth/OIDC의 subject·tenant claim으로 동일한 Principal을 생성한다.
 """
+
 from dataclasses import dataclass
-
 from fastapi import Depends, Header, HTTPException
-
 from .auth import decode_token
 
 

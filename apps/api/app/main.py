@@ -59,8 +59,10 @@ def startup() -> None: initialize()
 
 def target_events(target_id: str, tenant_slug: str | None = None) -> list[EventResponse]:
     events = [event for event in load_events(DATA_PATH) if event.target_ref == target_id]
-    if not events and tenant_slug:
-        events = [EventResponse(event_id=row["event_id"], occurred_at=row["occurred_at"], platform=row["platform"], author_ref=row["author_ref"], target_ref=target_id, text=row["text"], hashtags=row.get("hashtags", []), engagement={"likes": row.get("likes", 0), "shares": row.get("shares", 0), "comments": row.get("comments", 0)}) for row in ingested_events(tenant_slug, target_id)]
+    if tenant_slug:
+        stored = [EventResponse(event_id=row["event_id"], occurred_at=row["occurred_at"], platform=row["platform"], author_ref=row["author_ref"], target_ref=target_id, text=row["text"], hashtags=row.get("hashtags", []), engagement={"likes": row.get("likes", 0), "shares": row.get("shares", 0), "comments": row.get("comments", 0)}) for row in ingested_events(tenant_slug, target_id)]
+        by_id = {event.event_id: event for event in [*events, *stored]}
+        events = sorted(by_id.values(), key=lambda event: event.occurred_at)
     if not events:
         raise HTTPException(status_code=404, detail="분석 대상을 찾을 수 없습니다.")
     return events
@@ -90,6 +92,19 @@ def me(principal: Principal = Depends(require_principal("victim", "b2b", "admin"
 
 @app.get("/v1/targets/{target_id}/alerts", tags=["alerts"])
 def alerts(target_id: str, principal: Principal = Depends(require_principal("victim", "b2b", "admin"))) -> dict:
+    """현재 알림 상태를 조회한다. 이 GET 요청은 외부 발송을 만들지 않는다."""
+    authorize_target(principal, target_id)
+    risk = analyze_events(target_events(target_id, principal.tenant_slug))
+    return {
+        "target_id": target_id,
+        "severity": risk.stage.value,
+        "eligible": notification_allowed(principal.tenant_slug, target_id, risk.stage.value),
+        "cooldown_minutes": int(os.getenv("MOBIUS_ALERT_COOLDOWN_MINUTES", "30")),
+    }
+
+
+@app.post("/v1/targets/{target_id}/alerts:dispatch", tags=["alerts"])
+def dispatch_alert(target_id: str, principal: Principal = Depends(require_principal("victim", "b2b", "admin"))) -> dict:
     authorize_target(principal, target_id)
     risk = analyze_events(target_events(target_id, principal.tenant_slug))
     message = risk.rationale[0] if risk.rationale else "위험 신호가 없습니다."
@@ -253,7 +268,10 @@ def get_audit_logs(principal: Principal = Depends(require_principal("admin"))) -
 
 @app.get("/v1/dashboard", response_model=DashboardResponse, tags=["dashboard"])
 def dashboard(principal: Principal = Depends(require_principal("victim", "b2b", "admin"))) -> DashboardResponse:
-    events = load_events(DATA_PATH)
+    targets = tenant_targets(principal.tenant_slug)
+    if not targets:
+        raise HTTPException(status_code=404, detail="등록된 분석 대상이 없습니다.")
+    events = target_events(targets[0].target_id, principal.tenant_slug)
     return DashboardResponse(analysis=analyze_events(events), recent_events=events[-5:])
 
 

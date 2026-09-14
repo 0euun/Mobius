@@ -9,13 +9,13 @@
 - `services/workers`: 수집·분석·PDF 생성 비동기 워커
 - `services/ml`: 학습·평가·백테스트 코드
 - `data/synthetic`: 개인정보가 없는 재구성 시연 데이터
-- `data/raw`, `data/processed`: 학습용 공개 데이터셋(Git 미포함, [DATASET_LICENSES.md](DATASET_LICENSES.md) 참고)
+- `data/raw`, `data/processed`: 학습용 공개 데이터셋(Git 미포함, [DATASET_LICENSES.md](docs/DATASET_LICENSES.md) 참고)
 - `artifacts`: 학습된 모델 체크포인트·평가 로그
 
 ## 구현된 기능
 
 1. Google OAuth / 데모 로그인 후 JWT 세션 발급, 초대 기반 역할·조직 부여, 조직별(tenant) 데이터 격리(RBAC).
-2. synthetic replay 이벤트 또는 YouTube·NAVER Search 공식 API [커넥터](CONNECTOR.md)로 이벤트를 공통 데이터 계약으로 수집.
+2. synthetic replay 이벤트 또는 YouTube·NAVER Search 공식 API [커넥터](docs/CONNECTOR.md)로 이벤트를 공통 데이터 계약으로 수집.
 3. 언급 증가율·플랫폼 간 확산·유해성·협조 행동 의심 신호를 0~1로 정규화해 가중합 위험도·단계·근거·대응 가이드를 산출.
 4. `artifacts/text-classifier*`에 학습 모델이 있으면 KLUE-RoBERTa 유해성 확률과 K-MHaS 기반 멀티라벨 공격 유형 분류를 위험도 입력으로 사용하고, 없으면 규칙 기반 fallback으로 동작.
 5. 이미지 OCR·perceptual hash 유사도로 밈 재유포를 탐지하고(멀티모달), 영상은 확장 계약으로 시뮬레이션.
@@ -51,8 +51,8 @@ API 상태 확인: `http://localhost:8000/health`
 
 ## 문서
 
-- [PROJECT_REPORT.md](PROJECT_REPORT.md): 문제정의·해결방안·결론(평가 결과 포함) 종합 보고서
-- [EVALUATION.md](EVALUATION.md): 모델 평가·백테스트 수치와 재현 방법
-- [OPERATIONS.md](OPERATIONS.md): 운영·보안·한계 정책
-- [DATASET_LICENSES.md](DATASET_LICENSES.md): 학습 데이터 출처·라이선스
-- [CONNECTOR.md](CONNECTOR.md): YouTube·NAVER Search 공식 API 커넥터 사용법
+- [PROJECT_REPORT.md](docs/PROJECT_REPORT.md): 문제정의·해결방안·결론(평가 결과 포함) 종합 보고서
+- [EVALUATION.md](docs/EVALUATION.md): 모델 평가·백테스트 수치와 재현 방법
+- [OPERATIONS.md](docs/OPERATIONS.md): 운영·보안·한계 정책
+- [DATASET_LICENSES.md](docs/DATASET_LICENSES.md): 학습 데이터 출처·라이선스
+- [CONNECTOR.md](docs/CONNECTOR.md): YouTube·NAVER Search 공식 API 커넥터 사용법

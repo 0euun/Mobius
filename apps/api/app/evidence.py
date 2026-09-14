@@ -1,8 +1,8 @@
-"""무결성 매니페스트와 함께 제공하는 증거 PDF/ZIP 생성기."""
+# 무결성 매니페스트와 함께 제공하는 증거 PDF/ZIP 생성기
 
 from io import BytesIO
 import json
-from zipfile import ZIP_DEFLATED, ZipFile
+from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfbase import pdfmetrics
@@ -17,7 +17,7 @@ def build_evidence_zip(events: list[EventResponse]) -> bytes:
     manifest = build_evidence_manifest(events)
     pdf_buffer = BytesIO()
     pdfmetrics.registerFont(UnicodeCIDFont("HYSMyeongJo-Medium"))
-    pdf = Canvas(pdf_buffer, pagesize=A4)
+    pdf = Canvas(pdf_buffer, pagesize=A4, invariant=1)
     _, height = A4
     y = height - 52
     pdf.setFont("HYSMyeongJo-Medium", 16)
@@ -46,6 +46,11 @@ def build_evidence_zip(events: list[EventResponse]) -> bytes:
 
     package = BytesIO()
     with ZipFile(package, "w", ZIP_DEFLATED) as archive:
-        archive.writestr("evidence-report.pdf", pdf_buffer.getvalue())
-        archive.writestr("integrity-manifest.json", json.dumps(manifest.model_dump(mode="json"), ensure_ascii=False, indent=2))
+        for name, content in (
+            ("evidence-report.pdf", pdf_buffer.getvalue()),
+            ("integrity-manifest.json", json.dumps(manifest.model_dump(mode="json"), ensure_ascii=False, indent=2).encode()),
+        ):
+            item = ZipInfo(name, date_time=(2020, 1, 1, 0, 0, 0))
+            item.compress_type = ZIP_DEFLATED
+            archive.writestr(item, content)
     return package.getvalue()

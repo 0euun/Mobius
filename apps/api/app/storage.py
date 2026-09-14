@@ -1,15 +1,18 @@
-"""PostgreSQL 영속화와 테넌트 경계.
-
+"""
+PostgreSQL 영속화와 테넌트 경계.
 원문은 기본적으로 저장하지 않고 마스킹된 이벤트만 보관한다. 증거 ZIP 자체는
 다운로드 시점에 생성하며, DB에는 재현·감사용 해시와 메타데이터만 남긴다.
 """
 import hashlib
+
 import json
 import os
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import DateTime, Integer, String, Text, create_engine, select
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
+
+from .privacy import sanitize_event
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./mobius.db")
 RAW_RETENTION_DAYS = int(os.getenv("MOBIUS_RAW_RETENTION_DAYS", "0"))
@@ -226,8 +229,14 @@ def get_rule(tenant_slug: str, target_id: str) -> dict:
 
 
 def ingest_event(tenant_slug: str, target_id: str, payload: dict) -> EventRecord:
+    payload = sanitize_event(payload)
     expiry = datetime.now(UTC) + timedelta(days=MASKED_RETENTION_DAYS)
     with Session.begin() as session:
+        records = session.scalars(select(EventRecord).where(EventRecord.tenant_slug == tenant_slug, EventRecord.target_id == target_id))
+        event_id = payload.get("event_id")
+        for existing in records:
+            if json.loads(existing.payload_masked).get("event_id") == event_id:
+                return existing
         item = EventRecord(tenant_slug=tenant_slug, target_id=target_id, payload_masked=json.dumps(payload, ensure_ascii=False), raw_payload=None, expires_at=expiry)
         session.add(item); session.flush(); session.refresh(item); return item
 

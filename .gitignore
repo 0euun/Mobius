@@ -21,6 +21,7 @@ __pycache__/
 .ruff_cache/
 .coverage
 htmlcov/
+venv/
 
 # Local ML data, downloaded model weights and training checkpoints
 data/raw/

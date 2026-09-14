@@ -1,4 +1,5 @@
-"""OCR와 perceptual hash 기반 이미지 재유포 탐지."""
+# OCR와 perceptual hash 기반 이미지 재유포 탐지
+
 from io import BytesIO
 from PIL import Image
 

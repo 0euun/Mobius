@@ -1,8 +1,10 @@
-"""SMTP 이메일 알림. 외부 설정이 없으면 같은 응답 형태로 시뮬레이션한다."""
+# SMTP 이메일 알림. 외부 설정이 없으면 같은 응답 형태로 시뮬레이션.
+
 import os
 import smtplib
 import time
 from email.message import EmailMessage
+
 
 MAX_ATTEMPTS = 3
 

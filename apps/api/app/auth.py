@@ -1,4 +1,5 @@
-"""OAuth 설정, 초대 승인, 짧은 수명의 Mobius JWT 발급."""
+# OAuth 설정, 초대 승인, 짧은 수명의 Mobius JWT 발급.
+
 import json
 import os
 import base64
@@ -70,7 +71,7 @@ def _sign(value: str) -> str:
 
 
 def oauth_profile(provider: str, code: str) -> tuple[str, str]:
-    """공급자 code를 검증해 고유 subject와 이메일을 얻는다."""
+    # 공급자 code를 검증해 고유 subject와 이메일을 얻는다.
     config = OAUTH[provider]
     if provider != "google":
         raise HTTPException(status_code=404, detail="지원하지 않는 로그인 공급자입니다.")

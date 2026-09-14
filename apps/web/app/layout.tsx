@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Mobius | 온라인 공격 조기경보",
+  title: "Mobius | Online Threat Alert",
   description: "공개·허가 데이터 기반의 온라인 공격 조기경보 서비스",
 };
 

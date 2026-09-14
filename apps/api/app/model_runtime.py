@@ -1,4 +1,4 @@
-"""로컬에 저장된 Mobius 분류 모델의 지연 로딩 추론 런타임."""
+# 로컬에 저장된 Mobius 분류 모델의 지연 로딩 추론 런타임
 
 from __future__ import annotations
 

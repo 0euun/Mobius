@@ -1,4 +1,5 @@
-"""시간 그래프 계산과 선택적 Neo4j HTTP 증분 저장."""
+# 시간 그래프 계산과 선택적 Neo4j HTTP 증분 저장
+
 import json, os
 from collections import Counter
 from urllib.request import Request, urlopen
