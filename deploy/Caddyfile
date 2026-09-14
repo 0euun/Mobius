@@ -1,0 +1,15 @@
+{$MOBIUS_DOMAIN} {
+    encode zstd gzip
+    header Referrer-Policy "no-referrer"
+    header X-Content-Type-Options "nosniff"
+    request_body {
+        max_size 10MB
+    }
+    @api path /v1/* /health /docs /docs/* /redoc /openapi.json
+    handle @api {
+        reverse_proxy api:8000
+    }
+    handle {
+        reverse_proxy web:3000
+    }
+}

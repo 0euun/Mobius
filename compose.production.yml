@@ -1,0 +1,67 @@
+name: mobius-production
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      MOBIUS_DOMAIN: ${MOBIUS_DOMAIN:?Set MOBIUS_DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+      web:
+        condition: service_started
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ""
+    restart: unless-stopped
+  api:
+    build: ./apps/api
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      DATABASE_URL: postgresql+psycopg://mobius:${POSTGRES_PASSWORD:?Set a hex POSTGRES_PASSWORD}@postgres:5432/mobius
+      MOBIUS_JWT_SECRET: ${MOBIUS_JWT_SECRET:?Set MOBIUS_JWT_SECRET}
+      MOBIUS_DEMO_AUTH_ENABLED: ${MOBIUS_DEMO_AUTH_ENABLED:-false}
+      WEB_APP_URL: https://${MOBIUS_DOMAIN:?Set MOBIUS_DOMAIN}
+      GOOGLE_REDIRECT_URI: https://${MOBIUS_DOMAIN}/v1/auth/callback/google
+      MOBIUS_MODEL_DIR: /models/text-classifier-full/best
+      MOBIUS_MULTILABEL_MODEL_DIR: /models/multilabel-classifier/best
+    volumes:
+      - ./artifacts:/models:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      postgres:
+        condition: service_healthy
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: mobius
+      POSTGRES_USER: mobius
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mobius -d mobius"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:
