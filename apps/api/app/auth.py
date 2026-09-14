@@ -23,13 +23,13 @@ def provider_status() -> dict:
     return {name: {"configured": bool(item["client_id"] and item["client_secret"]), "redirect_uri": item["redirect_uri"]} for name, item in OAUTH.items()}
 
 
-def authorization_url(provider: str, invitation_token: str | None = None) -> str:
+def authorization_url(provider: str) -> str:
     config = OAUTH.get(provider)
     if config is None:
         raise HTTPException(status_code=404, detail="지원하지 않는 로그인 공급자입니다.")
     if not config["client_id"]:
         raise HTTPException(status_code=503, detail=f"{provider} OAuth 설정이 필요합니다.")
-    query = {"client_id": config["client_id"], "redirect_uri": config["redirect_uri"], "response_type": "code", "state": invitation_token or ""}
+    query = {"client_id": config["client_id"], "redirect_uri": config["redirect_uri"], "response_type": "code"}
     if provider == "google": query.update({"scope": "openid email profile", "access_type": "offline", "prompt": "select_account"})
     return f"{config['authorize_url']}?{urlencode(query)}"
 

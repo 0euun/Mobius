@@ -25,7 +25,6 @@ from .storage import (
     assert_target_access,
     audit,
     audit_history,
-    create_invitation,
     create_target,
     delete_target,
     evidence_history,
@@ -50,7 +49,8 @@ from .notifications import dispatch
 from .schemas import DashboardResponse, EvidenceManifest, EventResponse, GraphResponse, HealthResponse, IngestEventRequest, MonitoringRuleRequest, NaverSyncRequest, RiskSummary, TargetCreateRequest, TargetUpdateRequest, YouTubeSyncRequest
 
 app = FastAPI(title="Mobius API", version="0.2.0", description="집단 온라인 공격 조기경보 서비스 API")
-app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:3000"], allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"], allow_headers=["*"])
+cors_origins = [origin.strip().rstrip("/") for origin in os.getenv("CORS_ALLOW_ORIGINS", "http://localhost:3000").split(",") if origin.strip()]
+app.add_middleware(CORSMiddleware, allow_origins=cors_origins, allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"], allow_headers=["*"])
 DATA_PATH = Path(__file__).parent / "data" / "demo_events.jsonl"
 
 @app.on_event("startup")
@@ -117,32 +117,22 @@ def demo_login(x_api_key: str | None = Header(default=None)) -> dict:
 
 
 @app.get("/v1/auth/login/{provider}", tags=["auth"])
-def oauth_login(provider: str, invitation: str | None = None) -> dict:
-    return {"provider": provider, "authorization_url": authorization_url(provider, invitation)}
+def oauth_login(provider: str) -> dict:
+    return {"provider": provider, "authorization_url": authorization_url(provider)}
 
 
 @app.get("/v1/auth/callback/{provider}", tags=["auth"])
-def oauth_callback(provider: str, code: str, state: str | None = None) -> dict:
+def oauth_callback(provider: str, code: str) -> dict:
     statuses = provider_status()
     if provider not in statuses or not statuses[provider]["configured"]:
         raise HTTPException(status_code=503, detail="OAuth 공급자 설정이 필요합니다.")
     subject, email = oauth_profile(provider, code)
-    identity = resolve_identity(provider, f"{provider}:{subject}", email, state)
-    if identity is None:
-        raise HTTPException(status_code=403, detail="초대되지 않은 이메일입니다. 관리자 초대를 요청하세요.")
+    identity = resolve_identity(provider, f"{provider}:{subject}", email)
     token = issue_token(identity.provider_subject, identity.role, identity.tenant_slug)
     audit(identity.tenant_slug, identity.provider_subject, "auth.oauth_login", f"provider:{provider}")
     web_url = os.getenv("WEB_APP_URL", "http://localhost:3000")
     return RedirectResponse(f"{web_url}/?{urlencode({'token': token, 'role': identity.role, 'tenant': identity.tenant_slug})}")
 
-
-@app.post("/v1/admin/invitations", tags=["auth"])
-def create_role_invitation(email: str, role: str, principal: Principal = Depends(require_principal("admin"))) -> dict:
-    if role not in {"victim", "b2b"}:
-        raise HTTPException(status_code=400, detail="초대 역할은 victim 또는 b2b여야 합니다.")
-    invitation = create_invitation(principal.tenant_slug, email, role)
-    audit(principal.tenant_slug, principal.subject, "auth.invitation_created", f"invitation:{invitation.id}")
-    return {"id": invitation.id, "email": invitation.email, "role": invitation.role, "expires_at": invitation.expires_at, "invitation_token": invitation.token}
 
 @app.get("/v1/targets/{target_id}/alerts/history", tags=["alerts"])
 def alerts_history(target_id: str, principal: Principal = Depends(require_principal("victim", "b2b", "admin"))) -> list[dict]:

@@ -3,9 +3,9 @@
 원문은 기본적으로 저장하지 않고 마스킹된 이벤트만 보관한다. 증거 ZIP 자체는
 다운로드 시점에 생성하며, DB에는 재현·감사용 해시와 메타데이터만 남긴다.
 """
+import hashlib
 import json
 import os
-import secrets
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import DateTime, Integer, String, Text, create_engine, select
@@ -116,18 +116,6 @@ class AuthIdentityRecord(Base):
     provider_subject: Mapped[str] = mapped_column(String(255), unique=True)
     email: Mapped[str] = mapped_column(String(255), index=True)
     role: Mapped[str] = mapped_column(String(32))
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
-
-
-class InvitationRecord(Base):
-    __tablename__ = "role_invitations"
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    tenant_slug: Mapped[str] = mapped_column(String(64), index=True)
-    email: Mapped[str] = mapped_column(String(255), index=True)
-    role: Mapped[str] = mapped_column(String(32))
-    token: Mapped[str] = mapped_column(String(64), unique=True, index=True)
-    expires_at: Mapped[datetime] = mapped_column(DateTime)
-    accepted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
 
 
@@ -249,26 +237,19 @@ def ingested_events(tenant_slug: str, target_id: str) -> list[dict]:
     return [json.loads(item.payload_masked) for item in records]
 
 
-def create_invitation(tenant_slug: str, email: str, role: str, expires_hours: int = 72) -> InvitationRecord:
-    with Session.begin() as session:
-        item = InvitationRecord(tenant_slug=tenant_slug, email=email.strip().lower(), role=role, token=secrets.token_urlsafe(32), expires_at=datetime.now(UTC) + timedelta(hours=expires_hours))
-        session.add(item); session.flush(); session.refresh(item)
-        return item
-
-
-def resolve_identity(provider: str, provider_subject: str, email: str, invitation_token: str | None = None) -> AuthIdentityRecord | None:
+def resolve_identity(provider: str, provider_subject: str, email: str) -> AuthIdentityRecord:
+    """Google 계정마다 독립된 기본 조직과 피해자 역할을 자동 생성한다."""
     normalized_email = email.strip().lower()
     with Session.begin() as session:
         identity = session.scalar(select(AuthIdentityRecord).where(AuthIdentityRecord.provider_subject == provider_subject))
         if identity:
             return identity
-        invitation = None
-        if invitation_token:
-            invitation = session.scalar(select(InvitationRecord).where(InvitationRecord.token == invitation_token, InvitationRecord.accepted_at.is_(None)))
-        if invitation is None or invitation.email != normalized_email or invitation.expires_at.replace(tzinfo=UTC) < datetime.now(UTC):
-            return None
-        identity = AuthIdentityRecord(tenant_slug=invitation.tenant_slug, provider=provider, provider_subject=provider_subject, email=normalized_email, role=invitation.role)
-        invitation.accepted_at = datetime.now(UTC)
+        tenant_slug = f"google-{hashlib.sha256(provider_subject.encode()).hexdigest()[:16]}"
+        if session.scalar(select(TenantRecord).where(TenantRecord.slug == tenant_slug)) is None:
+            session.add(TenantRecord(slug=tenant_slug, name="Google 사용자 조직"))
+        if session.scalar(select(UserRecord).where(UserRecord.external_subject == provider_subject)) is None:
+            session.add(UserRecord(tenant_slug=tenant_slug, external_subject=provider_subject, role="victim"))
+        identity = AuthIdentityRecord(tenant_slug=tenant_slug, provider=provider, provider_subject=provider_subject, email=normalized_email, role="victim")
         session.add(identity); session.flush(); session.refresh(identity)
         return identity
 
